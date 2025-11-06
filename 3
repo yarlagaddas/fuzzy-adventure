@@ -1,0 +1,56 @@
+checkApprovalCodeElementsSectionTemplate = (obj: any, stages: any, flag: any): any => {
+  if (obj?.templates && Array.isArray(obj?.templates)) {
+    // collect missing for THIS call only; merge into flag at the end
+    const missing: string[] = [];
+
+    for (const template of obj?.templates) {
+      const findStage: any = stages?.find((stage: any) => stage?.stageDescription === template?.label);
+      const stageNeedsGAC =
+        !!findStage?.isGenerateApprovalCode ||
+        (stages?.length === 1 && !!stages?.[0]?.isGenerateApprovalCode);
+
+      if (stageNeedsGAC) {
+        let customFlag = { status: false, stageName: [] };
+
+        // 1) check inside this section (your original call)
+        customFlag = this.checkApprovalCodeElementsSingleTemplate(template, customFlag);
+
+        // 2) fallback: check the whole SCREEN so sibling order doesn't matter
+        if (customFlag.status) {
+          const screenFlag = this.checkApprovalCodeElementsSingleTemplate(obj, { status: false, stageName: [] });
+          if (!screenFlag.status) {
+            customFlag.status = false;         // found elsewhere on the same screen
+          }
+        }
+
+        // 3) if still missing, record the stage name (no duplicates)
+        if (customFlag.status) {
+          const stageName = findStage?.stageName ?? stages?.[0]?.stageName;
+          if (stageName && !missing.includes(stageName)) {
+            missing.push(stageName);
+          }
+        }
+      }
+
+      // recurse into nested sections (keeps your traversal)
+      if (template?.templates?.length) {
+        flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+      }
+    }
+
+    // --- finalize for this call ---
+    if (missing.length) {
+      // merge de-duplicated missing stage names into the shared accumulator
+      for (const n of missing) {
+        if (!flag.stageName?.includes(n)) {
+          flag.stageName.push(n);
+        }
+      }
+      flag.status = true;  // at least one stage missing GAC on this screen/tree
+    } else if (stages?.length === 1) {
+      // single-stage: explicitly clear when present
+      flag.status = false;
+    }
+  }
+  return flag;
+};
