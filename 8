@@ -1,0 +1,50 @@
+Perfect — thanks for the screenshot!
+Let’s pinpoint exactly where to add the missing fallback block for your single-stage issue.
+
+⸻
+
+👇 Here’s your code snippet with line reference (based on your screenshot)
+
+3071 checkApprovalCodeElementsSectionTemplate = (obj: any, stages: any, flag: any): any => {
+3072   if (obj?.templates && Array.isArray(obj?.templates)) {
+3073     for (const template of obj?.templates) {
+3074       const findStage: any = stages.find((stage: any) => stage?.stageDescription === template?.label);
+3075       if (findStage?.isGenerateApprovalCode || (stages?.length === 1 && stages?.[0]?.isGenerateApprovalCode)) {
+3076         let customFlag = { status: false, stageName: [] };
+3077 
+3078         // ✅ YOUR EXISTING LINE
+3079         this.checkApprovalCodeElementsSingleTemplate(template, customFlag);
+
+
+⸻
+
+✅ ADD THE FOLLOWING BLOCK immediately after line 3079
+
+(that’s after the this.checkApprovalCodeElementsSingleTemplate(template, customFlag); call):
+
+        // ✅ Fallback: check entire screen if section doesn’t contain GAC
+        if (customFlag.status) {
+          const screenFlag = this.checkApprovalCodeElementsSingleTemplate(
+            obj,
+            { status: false, stageName: [] }
+          );
+          if (!screenFlag.status) {
+            // Found GAC elsewhere on the screen → treat section as valid
+            customFlag.status = false;
+          }
+        }
+
+
+⸻
+
+🔹 Why here?
+
+Because:
+	•	customFlag.status becomes true only if the section is missing the component.
+	•	We immediately verify at the screen level (the obj) before proceeding.
+	•	If GAC is found elsewhere in the screen, we set customFlag.status = false, which prevents your validation popup from appearing for single-stage cases.
+
+⸻
+
+✅ That’s the only addition you need — no other structural changes.
+It will keep multi-stage intact and fix single-stage false alert.
