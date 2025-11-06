@@ -1,0 +1,66 @@
+You’re right—you don’t need to rip out anything that already makes single-stage work.
+Here’s the minimal, non-breaking change set that keeps single-stage behavior exactly as is and fixes multi-stage.
+
+⸻
+
+What to add (only 2 tiny edits)
+
+1) Add a guard so we only validate stages that actually require GAC
+
+Where: right after you compute findStage (in your screenshot that’s around line 3079–3081), before you call checkApprovalCodeElementsSingleTemplate.
+
+const findStage: any = stages.find((stage: any) => stage?.stageDescription === template?.label);
+
+// ⬇️ ADD THIS
+const stageNeedsGAC =
+  !!findStage?.isGenerateApprovalCode ||
+  (stages?.length === 1 && !!stages?.[0]?.isGenerateApprovalCode);
+
+if (!stageNeedsGAC) {
+  // still recurse so children are processed, but skip GAC checks for this section
+  if (template?.templates?.length) {
+    flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+  }
+  continue; // <-- skip to next template
+}
+// ⬆️ END ADD
+
+This does not change single-stage logic (when the checkbox is on, the guard is true).
+It just prevents pushing stage names for stages that don’t need GAC in multi-stage.
+
+Your existing lines after this (your customFlag = this.checkApprovalCodeElementsSingleTemplate(...), the screen fallback, and the existing single-stage reset if (stages?.length === 1 && !customFlag.status) { flag.status = false; }) all stay unchanged.
+
+⸻
+
+2) De-duplicate stage names before returning
+
+Where: just before your existing return flag; at the end of the method.
+
+// ⬇️ ADD THIS just before `return flag;`
+if (Array.isArray(flag.stageName)) {
+  flag.stageName = [...new Set(flag.stageName.filter(Boolean))];
+}
+// ⬆️ END ADD
+return flag;
+
+This doesn’t touch logic—only cleans up duplicates so your dialog lists each missing stage once.
+
+⸻
+
+Why this preserves single-stage
+	•	Your single-stage success path is still controlled by your existing line:
+
+if (stages?.length === 1 && !customFlag.status) { flag.status = false; }
+
+We don’t remove or change it.
+
+	•	We only skip validation for sections whose mapped stage does not require GAC. In single-stage, if the checkbox is on, the guard passes and your original code runs as before.
+
+⸻
+
+What this fixes for multi-stage
+	•	You no longer record “missing” for sections that belong to stages where isGenerateApprovalCode is false.
+	•	You still support “component before/after section” because your screen-level fallback is untouched.
+	•	Your dialog will show all missing stages (and without duplicates).
+
+That’s it—two small additions, no removals, and single-stage behavior stays exactly the same.
