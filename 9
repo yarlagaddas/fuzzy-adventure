@@ -1,0 +1,53 @@
+Perfect — I can see your code clearly now and tell you the exact line numbers to modify.
+
+Here’s where each addition goes based on your screenshot (where checkApprovalCodeElementsSectionTemplate starts around line 3070):
+
+⸻
+
+🟢 Step 1 — Add the multi-stage guard
+
+📍 Insert right after line 3074, immediately following your findStage line.
+
+const isMulti = stages?.length > 1;
+
+// In multi-stage, skip sections whose mapped stage does NOT require GAC
+if (isMulti && !findStage?.isGenerateApprovalCode) {
+  if (template?.templates?.length) {
+    flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+  }
+  continue; // go to next template
+}
+
+
+⸻
+
+🟢 Step 2 — Wrap the screen-level fallback
+
+Your fallback block (starting right after line 3079 — this.checkApprovalCodeElementsSingleTemplate(template, customFlag);)
+should now look like this:
+
+// Single-stage order independence only
+if (!isMulti && customFlag.status) {
+  const screenFlag = this.checkApprovalCodeElementsSingleTemplate(
+    obj,
+    { status: false, stageName: [] }
+  );
+  if (!screenFlag.status) {
+    // Found GAC elsewhere on the same screen → treat as valid
+    customFlag.status = false;
+  }
+}
+
+That’s the same place where your current screenFlag code sits — just wrap it with the !isMulti condition.
+
+⸻
+
+✅ Summary
+
+Step	Action	Approx. Line	Purpose
+1	Insert multi-stage guard	After 3074	Skip non-GAC stages in multi-stage
+2	Wrap fallback with !isMulti	Around 3079	Keep fallback only for single-stage
+
+After this, re-test:
+	•	Single-stage → passes if GAC exists anywhere.
+	•	Multi-stage → fails only for stages that checked “Generate Approval Code” but don’t have the component.
