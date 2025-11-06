@@ -1,0 +1,87 @@
+checkApprovalCodeElementsSectionTemplate = (obj: any, stages: any, flag: any): any => {
+  if (obj?.templates && Array.isArray(obj?.templates)) {
+    for (const template of obj?.templates) {
+
+      // map section to stage (your code)
+      const findStage: any = stages.find((stage: any) => stage?.stageDescription === template?.label);
+
+      // ✅ NEW: only validate sections whose stage actually requires GAC
+      const needs =
+        !!findStage?.isGenerateApprovalCode ||
+        (stages?.length === 1 && !!stages?.[0]?.isGenerateApprovalCode);
+
+      if (!needs) {
+        // still walk children so nested sections are checked
+        if (template?.templates?.length) {
+          flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+        }
+        continue; // move to next section
+      }
+
+      // your existing per-section check
+      let customFlag = { status: false, stageName: [] };
+      customFlag = this.checkApprovalCodeElementsSingleTemplate(template, customFlag);
+
+      // your order-independent fallback: scan whole screen if needed
+      if (customFlag.status) {
+        const screenFlag = this.checkApprovalCodeElementsSingleTemplate(
+          obj,
+          { status: false, stageName: [] }
+        );
+        if (!screenFlag.status) {
+          customFlag.status = false; // treat as present elsewhere on this screen
+        }
+      }
+
+      // your existing stage logic (unchanged)
+      if (stages.length > 1) {
+        if (customFlag.status) {
+          if (findStage?.stageName && !flag.stageName?.includes(findStage.stageName)) {
+            flag.stageName.push(findStage.stageName);
+          }
+          flag.status = true;
+        }
+      } else {
+        if (customFlag.status) {
+          if (stages?.[0]?.stageName && !flag.stageName?.includes(stages[0].stageName)) {
+            flag.stageName.push(stages[0].stageName);
+          }
+          flag.status = true;
+        }
+
+        if (stages?.length === 1 && !customFlag.status) {
+          flag.status = false; // keep your single-stage clear as-is
+        }
+      }
+
+      // recurse into nested sections (your traversal)
+      if (template?.templates?.length) {
+        flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+      }
+    }
+  }
+
+  // ✅ NEW: de-dupe once so dialog shows each stage only once
+  if (Array.isArray(flag.stageName)) {
+    flag.stageName = [...new Set(flag.stageName.filter(Boolean))];
+  }
+
+  // keep your original final single-stage fallback (verbatim)
+  if (
+    !flag.status &&
+    stages?.length === 1 &&
+    stages?.[0]?.isGenerateApprovalCode &&
+    isSection(obj.bindAs)
+  ) {
+    let customFlag = { status: false, stageName: [] };
+    customFlag = this.checkApprovalCodeElementsSingleTemplate(obj, customFlag);
+    if (customFlag.status) {
+      if (stages?.[0]?.stageName && !flag.stageName?.includes(stages[0].stageName)) {
+        flag.stageName.push(stages[0].stageName);
+      }
+      flag.status = true;
+    }
+  }
+
+  return flag;
+};
