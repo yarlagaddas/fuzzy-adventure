@@ -1,0 +1,17 @@
+// ✅ unified validation: works for both single & multi stage
+if (stages?.length) {
+  for (const st of stages) {
+    if (st.isGenerateApprovalCode && isSection(obj.bindAs)) {
+      let stageFlag = { status: false, stageName: [] };
+      stageFlag = this.checkApprovalCodeElementsSingleTemplate(obj, stageFlag);
+
+      if (stageFlag.status) {
+        flag.stageName.push(st.stageName);
+        flag.status = true;
+      } else {
+        flag.status = false; // stop if GAC missing in any stage
+        break;
+      }
+    }
+  }
+}
