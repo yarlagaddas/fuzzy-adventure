@@ -1,0 +1,11 @@
+// Order-independent fallback: if missing in this section, look anywhere on this screen
+if (customFlag.status) {
+  const screenFlag = this.checkApprovalCodeElementsSingleTemplate(
+    obj,
+    { status: false, stageName: [] }
+  );
+  if (!screenFlag.status) {
+    // Found GAC somewhere else on the same screen → treat as present
+    customFlag.status = false;
+  }
+}
