@@ -1,0 +1,87 @@
+checkApprovalCodeElementsSectionTemplate = (obj: any, stages: any, flag: any): any => {
+  if (obj?.templates && Array.isArray(obj?.templates)) {
+    for (const template of obj?.templates) {
+
+      // Map section to stage (your code)
+      const findStage: any = stages.find((stage: any) => stage?.stageDescription === template?.label);
+
+      // ✅ NEW: only validate sections whose stage actually requires GAC
+      const stageNeedsGAC =
+        !!findStage?.isGenerateApprovalCode ||
+        (stages?.length === 1 && !!stages?.[0]?.isGenerateApprovalCode);
+
+      if (!stageNeedsGAC) {
+        // still walk children so nested sections are checked
+        if (template?.templates?.length) {
+          flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+        }
+        continue;
+      }
+
+      let customFlag = { status: false, stageName: [] as string[] };
+
+      // Your existing per-section check
+      customFlag = this.checkApprovalCodeElementsSingleTemplate(template, customFlag);
+
+      // Your order-independent fallback: scan the whole screen if needed
+      if (customFlag.status) {
+        const screenFlag = this.checkApprovalCodeElementsSingleTemplate(obj, { status: false, stageName: [] });
+        if (!screenFlag.status) {
+          // found elsewhere on same screen → treat as present
+          customFlag.status = false;
+        }
+      }
+
+      // Your existing stage logic (unchanged)
+      if (stages.length > 1) {
+        if (customFlag.status) {
+          if (findStage?.stageName && !flag.stageName?.includes(findStage.stageName)) {
+            flag.stageName.push(findStage.stageName);
+          }
+          flag.status = true;
+        }
+      } else {
+        if (customFlag.status) {
+          if (stages?.[0]?.stageName && !flag.stageName?.includes(stages[0].stageName)) {
+            flag.stageName.push(stages[0].stageName);
+          }
+          flag.status = true;
+        }
+      }
+
+      // recurse into nested sections (your code path)
+      if (template?.templates?.length) {
+        flag = this.checkApprovalCodeElementsSectionTemplate(template, stages, flag);
+      }
+    }
+
+    // Your single-stage success clear (kept exactly as you had it)
+    if (stages?.length === 1 && !customFlag?.status) {
+      flag.status = false;
+    }
+  }
+
+  // ✅ NEW: de-dupe stage names once before returning (so dialog lists are clean)
+  if (Array.isArray(flag.stageName)) {
+    flag.stageName = [...new Set(flag.stageName.filter(Boolean))];
+  }
+
+  // Your original final single-stage fallback (kept verbatim)
+  if (
+    !flag.status &&
+    stages?.length === 1 &&
+    (stages?.[0].isGenerateApprovalCode) &&
+    (isSection(obj.bindAs))
+  ) {
+    let customFlag = { status: false, stageName: [] as string[] };
+    customFlag = this.checkApprovalCodeElementsSingleTemplate(obj, customFlag);
+    if (customFlag.status) {
+      if (stages?.[0]?.stageName && !flag.stageName?.includes(stages[0].stageName)) {
+        flag.stageName.push(stages[0].stageName);
+      }
+      flag.status = true;
+    }
+  }
+
+  return flag;
+};
