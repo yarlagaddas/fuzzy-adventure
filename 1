@@ -1,0 +1,33 @@
+// EXACT match, no trim/lowercase
+const isGACLabel = (s?: string) => s === 'Generate Approval Code';
+const isGACNode  = (n: any) =>
+  (isSection(n?.bindAs) && isGACLabel(n?.label)) ||
+  isGACLabel(n?.templateData?.name);
+
+
+checkApprovalCodeElementsSingleTemplate = (obj: any, flag: any): any => {
+  // default = MISSING
+  flag.status = true;
+
+  // present if this node itself is GAC (either Section or Component)
+  if (isGACNode(obj)) {
+    flag.status = false;   // PRESENT
+    return flag;
+  }
+
+  const kids = obj?.templates;
+  if (!Array.isArray(kids)) return flag;
+
+  // search children; only stop when we find a REAL match
+  for (const t of kids) {
+    if (isGACNode(t)) {        // found "Generate Approval Code"
+      flag.status = false;
+      return flag;
+    }
+    if (Array.isArray(t.templates) && t.templates.length) {
+      flag = this.checkApprovalCodeElementsSingleTemplate(t, flag);
+      if (flag.status === false) return flag; // only short-circuit on a real match
+    }
+  }
+  return flag; // still MISSING
+};
